@@ -2,89 +2,201 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>カスマス計算 - キー割り当て設定</title>
+    <title>カスマス計算</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: auto; }
-        .settings-box { background: #f0f4f8; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
-        .key-btn { padding: 8px 16px; cursor: pointer; font-size: 16px; margin-left: 10px; }
+        body { font-family: sans-serif; padding: 20px; background-color: #f8f9fa; color: #333; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        
+        /* 設定画面のスタイル */
+        #setup-screen { display: block; }
+        .setting-group { margin-bottom: 20px; padding: 15px; background: #f0f4f8; border-radius: 8px; }
+        .key-btn { padding: 8px 16px; cursor: pointer; font-size: 14px; margin-left: 10px; }
         .active-btn { background-color: #ffcccc; }
-        input[type="text"] { padding: 10px; font-size: 24px; width: 100%; box-sizing: border-box; }
+        .start-btn { display: block; width: 100%; padding: 15px; font-size: 18px; font-weight: bold; color: white; background: #007bff; border: none; border-radius: 8px; cursor: pointer; }
+        .start-btn:hover { background: #0056b3; }
+        input[type="number"] { padding: 8px; font-size: 16px; width: 80px; }
+
+        /* 計算画面のスタイル */
+        #game-screen { display: none; overflow-x: auto; }
+        table { border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ccc; width: 60px; height: 40px; text-align: center; }
+        th { background: #e9ecef; font-size: 14px; white-space: nowrap; padding: 5px; }
+        .top-header { background: #d4edda; }
+        .left-header { background: #cce5ff; }
+        input.calc-cell { width: 100%; height: 100%; box-sizing: border-box; border: none; text-align: center; font-size: 18px; outline: none; background: transparent; }
+        input.calc-cell:focus { background: #fff3cd; }
+        
+        .back-btn { margin-bottom: 20px; padding: 8px 16px; cursor: pointer; }
     </style>
 </head>
 <body>
 
-    <div class="settings-box">
-        <h3>キー割り当て設定</h3>
-        <p>ボタンを押してから、割り当てたいキーボードのキーを押してください。</p>
-        <p>
-            「 √ 」を入力するキー: 
-            <button id="btn-root" class="key-btn">キーを設定 (未設定)</button>
-        </p>
-        <p>
-            「 ー 」(マイナス) を入力するキー: 
-            <button id="btn-minus" class="key-btn">キーを設定 (未設定)</button>
-        </p>
+<div class="container">
+    <!-- 設定画面 -->
+    <div id="setup-screen">
+        <h2>カスマス計算 設定</h2>
+        
+        <div class="setting-group">
+            <h3>1. キー割り当て</h3>
+            <p>ボタンを押してから、割り当てたいキーを押してください。</p>
+            <p>「 √ 」を入力: <button id="btn-root" class="key-btn">設定する (未設定)</button></p>
+            <p>「 ー 」を入力: <button id="btn-minus" class="key-btn">設定する (未設定)</button></p>
+        </div>
+
+        <div class="setting-group">
+            <h3>2. マス目の数</h3>
+            <label>
+                <input type="number" id="grid-size" value="10" min="2" max="20"> マス × マス
+            </label>
+        </div>
+
+        <button id="start-btn" class="start-btn">計算スタート</button>
     </div>
 
-    <div>
-        <h3>計算入力テスト</h3>
-        <input type="text" id="calc-input" placeholder="ここに入力してテスト">
+    <!-- 計算画面 -->
+    <div id="game-screen">
+        <button id="back-btn" class="back-btn">← 設定に戻る</button>
+        <table id="calc-table"></table>
     </div>
+</div>
 
-    <script>
-        // 割り当てられたキーを保存するオブジェクト
-        let keyMap = {
-            root: null,
-            minus: null
-        };
+<script>
+    // 状態管理
+    let keyMap = { root: null, minus: null };
+    const operators = ['＋', '－', '×', '÷'];
 
-        const btnRoot = document.getElementById('btn-root');
-        const btnMinus = document.getElementById('btn-minus');
-        const calcInput = document.getElementById('calc-input');
+    // 要素の取得
+    const setupScreen = document.getElementById('setup-screen');
+    const gameScreen = document.getElementById('game-screen');
+    const btnRoot = document.getElementById('btn-root');
+    const btnMinus = document.getElementById('btn-minus');
+    const startBtn = document.getElementById('start-btn');
+    const backBtn = document.getElementById('back-btn');
+    const gridSizeInput = document.getElementById('grid-size');
+    const calcTable = document.getElementById('calc-table');
 
-        // キー割り当てを設定する関数
-        function setupKeyBinding(button, type) {
-            button.addEventListener('click', () => {
-                button.textContent = 'キーを押してください...';
-                button.classList.add('active-btn');
+    // キー割り当ての設定処理
+    function setupKeyBinding(button, type) {
+        button.addEventListener('click', () => {
+            button.textContent = 'キーを押してください...';
+            button.classList.add('active-btn');
+            const handler = (e) => {
+                e.preventDefault();
+                keyMap[type] = e.key;
+                button.textContent = `現在のキー: [ ${e.key === ' ' ? 'Space' : e.key} ]`;
+                button.classList.remove('active-btn');
+                document.removeEventListener('keydown', handler);
+            };
+            document.addEventListener('keydown', handler);
+        });
+    }
+    setupKeyBinding(btnRoot, 'root');
+    setupKeyBinding(btnMinus, 'minus');
 
-                // 1度だけキー入力を受け付ける
-                const handler = (e) => {
-                    e.preventDefault();
-                    keyMap[type] = e.key; // 押されたキーを保存
-                    button.textContent = `現在のキー: [ ${e.key === ' ' ? 'Space' : e.key} ]`;
-                    button.classList.remove('active-btn');
-                    document.removeEventListener('keydown', handler);
-                };
-                document.addEventListener('keydown', handler);
-            });
+    // 乱数生成（minからmax）
+    function getRandomInt(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    // 計算スタート時の処理
+    startBtn.addEventListener('click', () => {
+        const size = parseInt(gridSizeInput.value) || 10;
+        generateGrid(size);
+        setupScreen.style.display = 'none';
+        gameScreen.style.display = 'block';
+    });
+
+    // 設定に戻る処理
+    backBtn.addEventListener('click', () => {
+        gameScreen.style.display = 'none';
+        setupScreen.style.display = 'block';
+    });
+
+    // グリッドの生成
+    function generateGrid(size) {
+        calcTable.innerHTML = '';
+        
+        // 上の行の数字（列ヘッダー）を生成
+        const topNumbers = [];
+        const headerRow = document.createElement('tr');
+        headerRow.appendChild(document.createElement('th')); // 左上の空白マス
+        
+        for (let i = 0; i < size; i++) {
+            let num = getRandomInt(-9, 9);
+            topNumbers.push(num);
+            const th = document.createElement('th');
+            th.className = 'top-header';
+            th.textContent = num;
+            headerRow.appendChild(th);
+        }
+        calcTable.appendChild(headerRow);
+
+        const inputElements = [];
+
+        // 左の列の指示（行ヘッダー）と入力マスを生成
+        for (let row = 0; row < size; row++) {
+            const tr = document.createElement('tr');
+            
+            // 左ヘッダー生成（演算子 + 数字）
+            const op = operators[getRandomInt(0, operators.length - 1)];
+            let num = getRandomInt(-9, 9);
+            if (op === '÷' && num === 0) num = 1; // 0割りを防止
+            
+            const th = document.createElement('th');
+            th.className = 'left-header';
+            th.innerHTML = `${op}<br>(${num})`;
+            tr.appendChild(th);
+
+            // 入力マス生成
+            for (let col = 0; col < size; col++) {
+                const td = document.createElement('td');
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'calc-cell';
+                inputElements.push(input);
+                td.appendChild(input);
+                tr.appendChild(td);
+            }
+            calcTable.appendChild(tr);
         }
 
-        setupKeyBinding(btnRoot, 'root');
-        setupKeyBinding(btnMinus, 'minus');
-
-        // テスト用入力欄でのキー制御
-        calcInput.addEventListener('keydown', (e) => {
-            // 割り当てられたキーが押されたら、元の入力をキャンセルして記号を挿入
-            if (keyMap.root && e.key === keyMap.root) {
-                e.preventDefault();
-                insertAtCursor(calcInput, '√');
-            } else if (keyMap.minus && e.key === keyMap.minus) {
-                e.preventDefault();
-                insertAtCursor(calcInput, 'ー'); // マイナス記号（必要に応じて '-' に変更）
-            }
+        // 全ての入力マスにイベントを設定
+        inputElements.forEach((input, index) => {
+            input.addEventListener('keydown', (e) => {
+                // カスタムキーの処理
+                if (keyMap.root && e.key === keyMap.root) {
+                    e.preventDefault();
+                    insertAtCursor(input, '√');
+                } else if (keyMap.minus && e.key === keyMap.minus) {
+                    e.preventDefault();
+                    insertAtCursor(input, 'ー');
+                }
+                
+                // Enterキーで次のマスへ移動
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (index + 1 < inputElements.length) {
+                        inputElements[index + 1].focus();
+                    }
+                }
+            });
         });
 
-        // カーソル位置に文字を挿入する関数
-        function insertAtCursor(input, textToInsert) {
-            const start = input.selectionStart;
-            const end = input.selectionEnd;
-            const text = input.value;
-            // カーソルの前後に文字を分割して間に挿入
-            input.value = text.slice(0, start) + textToInsert + text.slice(end);
-            // カーソル位置を挿入した文字の後ろに移動
-            input.selectionStart = input.selectionEnd = start + textToInsert.length;
+        // 生成完了後、一番左上のマスに自動でフォーカス
+        if (inputElements.length > 0) {
+            inputElements[0].focus();
         }
-    </script>
+    }
+
+    // カーソル位置に文字を挿入
+    function insertAtCursor(input, textToInsert) {
+        const start = input.selectionStart;
+        const end = input.selectionEnd;
+        const text = input.value;
+        input.value = text.slice(0, start) + textToInsert + text.slice(end);
+        input.selectionStart = input.selectionEnd = start + textToInsert.length;
+    }
+</script>
+
 </body>
 </html>
