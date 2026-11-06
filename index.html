@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>カスマス計算 - 乗算・平方根対応版</title>
+    <title>カスマス計算 - 乗算・平方根対応（1桁限定版）</title>
     <style>
         body { font-family: sans-serif; padding: 20px; background-color: #f8f9fa; color: #333; }
         .container { max-width: 800px; margin: auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
@@ -105,43 +105,53 @@
     setupKeyBinding(btnRoot, 'root');
     setupKeyBinding(btnMinus, 'minus');
 
-    // 見出し行（重複なし、必ず1つの√と1つのマイナスを含む）を生成する関数
+    // 配列をシャッフルする補助関数
+    function shuffleArray(array) {
+        let curId = array.length;
+        while (0 !== curId) {
+            let randId = Math.floor(Math.random() * curId);
+            curId -= 1;
+            let tmp = array[curId];
+            array[curId] = array[randId];
+            array[randId] = tmp;
+        }
+        return array;
+    }
+
+    // 1桁限定で見出し行（重複なし、必ず1つの√と1つのマイナスを含む）を生成する関数
     function generateHeaderLine(size) {
+        // すべて1桁のバリエーションを定義（合計21種類）
+        let rootsPool = [2, 3, 5, 6, 7].map(n => ({ c: 1, r: n, display: '√' + n }));
+        let negPool = [-2, -3, -4, -5, -6, -7, -8, -9].map(n => ({ c: n, r: 1, display: n.toString() }));
+        let posPool = [2, 3, 4, 5, 6, 7, 8, 9].map(n => ({ c: n, r: 1, display: n.toString() }));
+
+        rootsPool = shuffleArray(rootsPool);
+        negPool = shuffleArray(negPool);
+        posPool = shuffleArray(posPool);
+
         let res = [];
-        let usedDisplays = new Set();
+        
+        // 1. 平方根を必ず1つ追加
+        res.push(rootsPool.pop());
+        // 2. マイナスの数を必ず1つ追加
+        res.push(negPool.pop());
 
-        // 1. 平方根を必ず1つ追加 (簡単に約分できない2, 3, 5, 6, 7から選出)
-        let roots = [2, 3, 5, 6, 7];
-        let rVal = roots[Math.floor(Math.random() * roots.length)];
-        res.push({ c: 1, r: rVal, display: '√' + rVal });
-        usedDisplays.add('√' + rVal);
-
-        // 2. マイナスの数を必ず1つ追加 (-2 〜 -9)
-        let nVal = -1 * (Math.floor(Math.random() * 8) + 2);
-        res.push({ c: nVal, r: 1, display: nVal.toString() });
-        usedDisplays.add(nVal.toString());
-
-        // 3. 残りのマスを正の数で埋める（重複しないようにする）
+        // 3. 残りのマス分を、使わなかった1桁の数字プールすべてから抽出
+        let remainingPool = shuffleArray([...rootsPool, ...negPool, ...posPool]);
         for(let i = 0; i < size - 2; i++) {
-            let candidate;
-            let cStr;
-            do {
-                candidate = Math.floor(Math.random() * 15) + 2; // 2 〜 16
-                cStr = candidate.toString();
-            } while (usedDisplays.has(cStr)); // 既に使われている数字ならやり直し
-            
-            usedDisplays.add(cStr);
-            res.push({ c: candidate, r: 1, display: cStr });
+            res.push(remainingPool.pop());
         }
         
-        // 配列をシャッフル
-        res.sort(() => Math.random() - 0.5);
-        return res;
+        // 最後に全体の並び順をシャッフル
+        return shuffleArray(res);
     }
 
     startBtn.addEventListener('click', () => {
         currentGridSize = parseInt(gridSizeInput.value) || 10;
-        if(currentGridSize < 2) currentGridSize = 2; // 最低2マスは担保
+        // マス目は最低2、最大20（1桁のバリエーションが21種のため）に制限
+        if(currentGridSize < 2) currentGridSize = 2;
+        if(currentGridSize > 20) currentGridSize = 20; 
+        
         generateGrid(currentGridSize);
         setupScreen.style.display = 'none';
         gameScreen.style.display = 'block';
@@ -203,10 +213,8 @@
             
             input.addEventListener('input', () => {
                 let val = input.value;
-                // 全角を半角に変換
                 val = val.replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
                 val = val.replace(/[ー−‐―]/g, '-');
-                // もし「R」などで打たれたら√に変換
                 val = val.replace(/[rR]/g, '√');
                 input.value = val;
             });
@@ -248,12 +256,10 @@
         if (inputElements.length > 0) inputElements[0].focus();
     }
 
-    // 平方根を含む掛け算を行い、最も簡略化された文字列を返す関数
     function getExpectedAnswer(c1, r1, c2, r2) {
-        let c = c1 * c2; // 係数同士の掛け算
-        let r = r1 * r2; // √の中身同士の掛け算
+        let c = c1 * c2; 
+        let r = r1 * r2; 
         
-        // √の中身を簡略化する (例: √12 -> 2√3)
         for (let i = 2; i * i <= r; i++) {
             while (r % (i * i) === 0) {
                 c *= i;
@@ -262,7 +268,7 @@
         }
         
         if (c === 0) return "0";
-        if (r === 1) return c.toString(); // √が外れた場合
+        if (r === 1) return c.toString(); 
         
         let cStr = "";
         if (c === 1) cStr = "";
@@ -283,7 +289,6 @@
             const topObj = topNumbers[col];
             const leftObj = leftNumbers[row];
             
-            // プログラムで正しい答え（簡略化済み）を計算
             const expectedAnswer = getExpectedAnswer(leftObj.c, leftObj.r, topObj.c, topObj.r);
             const userInput = input.value.trim(); 
 
@@ -294,8 +299,6 @@
             } else {
                 input.classList.add('incorrect');
                 input.classList.remove('correct');
-                // ※検証用: 間違えた時に正解を見たい場合は以下のコメントアウトを外す
-                // input.title = "正解: " + expectedAnswer; 
             }
         });
 
