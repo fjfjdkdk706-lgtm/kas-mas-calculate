@@ -28,7 +28,7 @@
         .top-header { background: #d4edda; }
         .left-header { background: #cce5ff; }
         
-        input.calc-cell { width: 100%; height: 100%; box-sizing: border-box; border: none; text-align: center; font-size: 18px; outline: none; background: transparent; }
+        input.calc-cell { width: 100%; height: 100%; box-sizing: border-box; border: none; text-align: center; font-size: 18px; outline: none; background: transparent; ime-mode: disabled; }
         input.calc-cell:focus { background: #fff3cd; }
         
         /* 答え合わせの結果カラー */
@@ -42,14 +42,13 @@
 <body>
 
 <div class="container">
-    <!-- 設定画面 -->
     <div id="setup-screen">
         <h2>カスマス計算 (乗算固定) 設定</h2>
         
         <div class="setting-group">
             <h3>1. キー割り当て</h3>
             <p>「 √ 」を入力: <button id="btn-root" class="key-btn">設定する (未設定)</button></p>
-            <p>「 ー 」を入力: <button id="btn-minus" class="key-btn">設定する (未設定)</button></p>
+            <p>「 － 」(マイナス)を入力: <button id="btn-minus" class="key-btn">設定する (未設定)</button></p>
         </div>
 
         <div class="setting-group">
@@ -62,7 +61,6 @@
         <button id="start-btn" class="start-btn">計算スタート</button>
     </div>
 
-    <!-- 計算画面 -->
     <div id="game-screen">
         <button id="back-btn" class="back-btn">← 設定に戻る</button>
         <table id="calc-table"></table>
@@ -73,14 +71,12 @@
 </div>
 
 <script>
-    // 状態管理
     let keyMap = { root: null, minus: null };
     let topNumbers = [];
     let leftNumbers = [];
     let inputElements = [];
     let currentGridSize = 10;
 
-    // 要素の取得
     const setupScreen = document.getElementById('setup-screen');
     const gameScreen = document.getElementById('game-screen');
     const btnRoot = document.getElementById('btn-root');
@@ -92,7 +88,6 @@
     const calcTable = document.getElementById('calc-table');
     const resultMsg = document.getElementById('result-msg');
 
-    // キー割り当ての設定
     function setupKeyBinding(button, type) {
         button.addEventListener('click', () => {
             button.textContent = 'キーを押してください...';
@@ -114,7 +109,6 @@
         return Math.floor(Math.random() * (max - min + 1)) + min;
     }
 
-    // 計算スタート
     startBtn.addEventListener('click', () => {
         currentGridSize = parseInt(gridSizeInput.value) || 10;
         generateGrid(currentGridSize);
@@ -124,24 +118,21 @@
         resultMsg.textContent = '';
     });
 
-    // 戻る
     backBtn.addEventListener('click', () => {
         gameScreen.style.display = 'none';
         setupScreen.style.display = 'block';
     });
 
-    // グリッド生成（乗算固定）
     function generateGrid(size) {
         calcTable.innerHTML = '';
         topNumbers = [];
         leftNumbers = [];
         inputElements = [];
         
-        // --- 1行目（ヘッダー行）---
         const headerRow = document.createElement('tr');
         const topLeftTh = document.createElement('th');
         topLeftTh.className = 'top-left-cell';
-        topLeftTh.textContent = '×'; // 左上に×を固定
+        topLeftTh.textContent = '×';
         headerRow.appendChild(topLeftTh);
         
         for (let i = 0; i < size; i++) {
@@ -154,11 +145,9 @@
         }
         calcTable.appendChild(headerRow);
 
-        // --- 2行目以降（左ヘッダー ＋ 入力マス）---
         for (let row = 0; row < size; row++) {
             const tr = document.createElement('tr');
             
-            // 左ヘッダー（数字のみ）
             let num = getRandomInt(-9, 9);
             leftNumbers.push(num);
             const th = document.createElement('th');
@@ -166,11 +155,12 @@
             th.textContent = num;
             tr.appendChild(th);
 
-            // 入力マス
             for (let col = 0; col < size; col++) {
                 const td = document.createElement('td');
                 const input = document.createElement('input');
+                // スマホ等でも数字キーボードが出やすくなる設定
                 input.type = 'text';
+                input.inputMode = 'tel'; 
                 input.className = 'calc-cell';
                 inputElements.push(input);
                 td.appendChild(input);
@@ -179,40 +169,60 @@
             calcTable.appendChild(tr);
         }
 
-        // 入力マスのイベント設定（キーボード操作用）
         inputElements.forEach((input, index) => {
-            // 背景色リセット
             input.classList.remove('correct', 'incorrect');
             
+            // 日本語入力ONのまま打たれても、自動で半角に変換する処理
+            input.addEventListener('input', () => {
+                let val = input.value;
+                // 全角数字を半角数字に変換
+                val = val.replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
+                // 全角ハイフン・マイナス等を半角のマイナスに変換
+                val = val.replace(/[ー−‐―]/g, '-');
+                input.value = val;
+            });
+
             input.addEventListener('keydown', (e) => {
+                // カスタムキー処理（入力時点から半角ハイフンを入れる）
                 if (keyMap.root && e.key === keyMap.root) {
                     e.preventDefault();
                     insertAtCursor(input, '√');
+                    return;
                 } else if (keyMap.minus && e.key === keyMap.minus) {
                     e.preventDefault();
-                    insertAtCursor(input, 'ー');
+                    insertAtCursor(input, '-'); 
+                    return;
                 }
                 
-                // Enterキーで次のマスへ移動
-                if (e.key === 'Enter') {
+                // 方向キーとEnterキーによる移動処理
+                if (e.key === 'ArrowRight') {
+                    e.preventDefault();
+                    if (index + 1 < inputElements.length) inputElements[index + 1].focus();
+                } else if (e.key === 'ArrowLeft') {
+                    e.preventDefault();
+                    if (index - 1 >= 0) inputElements[index - 1].focus();
+                } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    if (index + currentGridSize < inputElements.length) inputElements[index + currentGridSize].focus();
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (index - currentGridSize >= 0) inputElements[index - currentGridSize].focus();
+                } else if (e.key === 'Enter') {
                     e.preventDefault();
                     if (index + 1 < inputElements.length) {
                         inputElements[index + 1].focus();
                     } else {
-                        // 最後のマスでEnterを押したら答え合わせボタンにフォーカス
                         checkBtn.focus();
                     }
                 }
             });
         });
 
-        // 生成完了後、一番左上のマスに自動フォーカス
         if (inputElements.length > 0) {
             inputElements[0].focus();
         }
     }
 
-    // 答え合わせの処理
     checkBtn.addEventListener('click', () => {
         let correctCount = 0;
         const total = inputElements.length;
@@ -221,11 +231,9 @@
             const row = Math.floor(index / currentGridSize);
             const col = index % currentGridSize;
             
-            // 正解の計算 (左の数 × 上の数)
             const expectedAnswer = (leftNumbers[row] * topNumbers[col]).toString();
-            
-            // ユーザー入力の正規化 (全角マイナスや割り当てた「ー」を半角ハイフンに変換して比較)
-            const userInput = input.value.trim().replace(/[ー−]/g, '-');
+            // 自動変換がかかっているので基本はそのまま比較可能
+            const userInput = input.value.trim(); 
 
             if (userInput === expectedAnswer) {
                 input.classList.add('correct');
@@ -237,7 +245,6 @@
             }
         });
 
-        // 結果メッセージの表示
         if (correctCount === total) {
             resultMsg.style.color = '#28a745';
             resultMsg.textContent = `🎉 全問正解！ (${correctCount} / ${total})`;
@@ -247,7 +254,6 @@
         }
     });
 
-    // カーソル位置に文字を挿入
     function insertAtCursor(input, textToInsert) {
         const start = input.selectionStart;
         const end = input.selectionEnd;
