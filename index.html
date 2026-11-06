@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>カスマス計算 - 乗算版</title>
+    <title>カスマス計算 - 乗算・平方根対応版</title>
     <style>
         body { font-family: sans-serif; padding: 20px; background-color: #f8f9fa; color: #333; }
         .container { max-width: 800px; margin: auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
@@ -43,7 +43,7 @@
 
 <div class="container">
     <div id="setup-screen">
-        <h2>カスマス計算 (乗算固定) 設定</h2>
+        <h2>カスマス計算 (乗算・平方根MIX) 設定</h2>
         
         <div class="setting-group">
             <h3>1. キー割り当て</h3>
@@ -105,12 +105,43 @@
     setupKeyBinding(btnRoot, 'root');
     setupKeyBinding(btnMinus, 'minus');
 
-    function getRandomInt(min, max) {
-        return Math.floor(Math.random() * (max - min + 1)) + min;
+    // 見出し行（重複なし、必ず1つの√と1つのマイナスを含む）を生成する関数
+    function generateHeaderLine(size) {
+        let res = [];
+        let usedDisplays = new Set();
+
+        // 1. 平方根を必ず1つ追加 (簡単に約分できない2, 3, 5, 6, 7から選出)
+        let roots = [2, 3, 5, 6, 7];
+        let rVal = roots[Math.floor(Math.random() * roots.length)];
+        res.push({ c: 1, r: rVal, display: '√' + rVal });
+        usedDisplays.add('√' + rVal);
+
+        // 2. マイナスの数を必ず1つ追加 (-2 〜 -9)
+        let nVal = -1 * (Math.floor(Math.random() * 8) + 2);
+        res.push({ c: nVal, r: 1, display: nVal.toString() });
+        usedDisplays.add(nVal.toString());
+
+        // 3. 残りのマスを正の数で埋める（重複しないようにする）
+        for(let i = 0; i < size - 2; i++) {
+            let candidate;
+            let cStr;
+            do {
+                candidate = Math.floor(Math.random() * 15) + 2; // 2 〜 16
+                cStr = candidate.toString();
+            } while (usedDisplays.has(cStr)); // 既に使われている数字ならやり直し
+            
+            usedDisplays.add(cStr);
+            res.push({ c: candidate, r: 1, display: cStr });
+        }
+        
+        // 配列をシャッフル
+        res.sort(() => Math.random() - 0.5);
+        return res;
     }
 
     startBtn.addEventListener('click', () => {
         currentGridSize = parseInt(gridSizeInput.value) || 10;
+        if(currentGridSize < 2) currentGridSize = 2; // 最低2マスは担保
         generateGrid(currentGridSize);
         setupScreen.style.display = 'none';
         gameScreen.style.display = 'block';
@@ -125,10 +156,13 @@
 
     function generateGrid(size) {
         calcTable.innerHTML = '';
-        topNumbers = [];
-        leftNumbers = [];
         inputElements = [];
         
+        // 見出し用の配列を生成
+        topNumbers = generateHeaderLine(size);
+        leftNumbers = generateHeaderLine(size);
+        
+        // --- 1行目（上ヘッダー） ---
         const headerRow = document.createElement('tr');
         const topLeftTh = document.createElement('th');
         topLeftTh.className = 'top-left-cell';
@@ -136,31 +170,26 @@
         headerRow.appendChild(topLeftTh);
         
         for (let i = 0; i < size; i++) {
-            let num = getRandomInt(-9, 9);
-            topNumbers.push(num);
             const th = document.createElement('th');
             th.className = 'top-header';
-            th.textContent = num;
+            th.textContent = topNumbers[i].display;
             headerRow.appendChild(th);
         }
         calcTable.appendChild(headerRow);
 
+        // --- 2行目以降（左ヘッダー ＋ 入力マス） ---
         for (let row = 0; row < size; row++) {
             const tr = document.createElement('tr');
             
-            let num = getRandomInt(-9, 9);
-            leftNumbers.push(num);
             const th = document.createElement('th');
             th.className = 'left-header';
-            th.textContent = num;
+            th.textContent = leftNumbers[row].display;
             tr.appendChild(th);
 
             for (let col = 0; col < size; col++) {
                 const td = document.createElement('td');
                 const input = document.createElement('input');
-                // スマホ等でも数字キーボードが出やすくなる設定
                 input.type = 'text';
-                input.inputMode = 'tel'; 
                 input.className = 'calc-cell';
                 inputElements.push(input);
                 td.appendChild(input);
@@ -172,18 +201,17 @@
         inputElements.forEach((input, index) => {
             input.classList.remove('correct', 'incorrect');
             
-            // 日本語入力ONのまま打たれても、自動で半角に変換する処理
             input.addEventListener('input', () => {
                 let val = input.value;
-                // 全角数字を半角数字に変換
+                // 全角を半角に変換
                 val = val.replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
-                // 全角ハイフン・マイナス等を半角のマイナスに変換
                 val = val.replace(/[ー−‐―]/g, '-');
+                // もし「R」などで打たれたら√に変換
+                val = val.replace(/[rR]/g, '√');
                 input.value = val;
             });
 
             input.addEventListener('keydown', (e) => {
-                // カスタムキー処理（入力時点から半角ハイフンを入れる）
                 if (keyMap.root && e.key === keyMap.root) {
                     e.preventDefault();
                     insertAtCursor(input, '√');
@@ -194,7 +222,6 @@
                     return;
                 }
                 
-                // 方向キーとEnterキーによる移動処理
                 if (e.key === 'ArrowRight') {
                     e.preventDefault();
                     if (index + 1 < inputElements.length) inputElements[index + 1].focus();
@@ -218,9 +245,31 @@
             });
         });
 
-        if (inputElements.length > 0) {
-            inputElements[0].focus();
+        if (inputElements.length > 0) inputElements[0].focus();
+    }
+
+    // 平方根を含む掛け算を行い、最も簡略化された文字列を返す関数
+    function getExpectedAnswer(c1, r1, c2, r2) {
+        let c = c1 * c2; // 係数同士の掛け算
+        let r = r1 * r2; // √の中身同士の掛け算
+        
+        // √の中身を簡略化する (例: √12 -> 2√3)
+        for (let i = 2; i * i <= r; i++) {
+            while (r % (i * i) === 0) {
+                c *= i;
+                r /= (i * i);
+            }
         }
+        
+        if (c === 0) return "0";
+        if (r === 1) return c.toString(); // √が外れた場合
+        
+        let cStr = "";
+        if (c === 1) cStr = "";
+        else if (c === -1) cStr = "-";
+        else cStr = c.toString();
+        
+        return `${cStr}√${r}`;
     }
 
     checkBtn.addEventListener('click', () => {
@@ -231,8 +280,11 @@
             const row = Math.floor(index / currentGridSize);
             const col = index % currentGridSize;
             
-            const expectedAnswer = (leftNumbers[row] * topNumbers[col]).toString();
-            // 自動変換がかかっているので基本はそのまま比較可能
+            const topObj = topNumbers[col];
+            const leftObj = leftNumbers[row];
+            
+            // プログラムで正しい答え（簡略化済み）を計算
+            const expectedAnswer = getExpectedAnswer(leftObj.c, leftObj.r, topObj.c, topObj.r);
             const userInput = input.value.trim(); 
 
             if (userInput === expectedAnswer) {
@@ -242,6 +294,8 @@
             } else {
                 input.classList.add('incorrect');
                 input.classList.remove('correct');
+                // ※検証用: 間違えた時に正解を見たい場合は以下のコメントアウトを外す
+                // input.title = "正解: " + expectedAnswer; 
             }
         });
 
