@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>カスマス計算 - キー割り当て設定</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: auto; }
+        .settings-box { background: #f0f4f8; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .key-btn { padding: 8px 16px; cursor: pointer; font-size: 16px; margin-left: 10px; }
+        .active-btn { background-color: #ffcccc; }
+        input[type="text"] { padding: 10px; font-size: 24px; width: 100%; box-sizing: border-box; }
+    </style>
+</head>
+<body>
+
+    <div class="settings-box">
+        <h3>キー割り当て設定</h3>
+        <p>ボタンを押してから、割り当てたいキーボードのキーを押してください。</p>
+        <p>
+            「 √ 」を入力するキー: 
+            <button id="btn-root" class="key-btn">キーを設定 (未設定)</button>
+        </p>
+        <p>
+            「 ー 」(マイナス) を入力するキー: 
+            <button id="btn-minus" class="key-btn">キーを設定 (未設定)</button>
+        </p>
+    </div>
+
+    <div>
+        <h3>計算入力テスト</h3>
+        <input type="text" id="calc-input" placeholder="ここに入力してテスト">
+    </div>
+
+    <script>
+        // 割り当てられたキーを保存するオブジェクト
+        let keyMap = {
+            root: null,
+            minus: null
+        };
+
+        const btnRoot = document.getElementById('btn-root');
+        const btnMinus = document.getElementById('btn-minus');
+        const calcInput = document.getElementById('calc-input');
+
+        // キー割り当てを設定する関数
+        function setupKeyBinding(button, type) {
+            button.addEventListener('click', () => {
+                button.textContent = 'キーを押してください...';
+                button.classList.add('active-btn');
+
+                // 1度だけキー入力を受け付ける
+                const handler = (e) => {
+                    e.preventDefault();
+                    keyMap[type] = e.key; // 押されたキーを保存
+                    button.textContent = `現在のキー: [ ${e.key === ' ' ? 'Space' : e.key} ]`;
+                    button.classList.remove('active-btn');
+                    document.removeEventListener('keydown', handler);
+                };
+                document.addEventListener('keydown', handler);
+            });
+        }
+
+        setupKeyBinding(btnRoot, 'root');
+        setupKeyBinding(btnMinus, 'minus');
+
+        // テスト用入力欄でのキー制御
+        calcInput.addEventListener('keydown', (e) => {
+            // 割り当てられたキーが押されたら、元の入力をキャンセルして記号を挿入
+            if (keyMap.root && e.key === keyMap.root) {
+                e.preventDefault();
+                insertAtCursor(calcInput, '√');
+            } else if (keyMap.minus && e.key === keyMap.minus) {
+                e.preventDefault();
+                insertAtCursor(calcInput, 'ー'); // マイナス記号（必要に応じて '-' に変更）
+            }
+        });
+
+        // カーソル位置に文字を挿入する関数
+        function insertAtCursor(input, textToInsert) {
+            const start = input.selectionStart;
+            const end = input.selectionEnd;
+            const text = input.value;
+            // カーソルの前後に文字を分割して間に挿入
+            input.value = text.slice(0, start) + textToInsert + text.slice(end);
+            // カーソル位置を挿入した文字の後ろに移動
+            input.selectionStart = input.selectionEnd = start + textToInsert.length;
+        }
+    </script>
+</body>
+</html>
